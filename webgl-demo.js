@@ -105,10 +105,12 @@ class GLRenderShaderSourceGenerator {
   }
 
   static getMultipleRenderFragmentShaderSrc(isLines, screenWidth, screenHeight, maxFragmentUniformVectors) {
+    const positionsSize = (Math.max(isLines ? (maxFragmentUniformVectors - 6) : (maxFragmentUniformVectors - 5), 1));
+    
     return `
     #define SCREEN_WIDTH ` + screenWidth + `
     #define SCREEN_HEIGHT ` + screenHeight + `
-    #define POSITIONS_SIZE ` + (Math.max(maxFragmentUniformVectors - 5, 1)) + `
+    #define POSITIONS_SIZE ` + positionsSize + `
     precision mediump float;
     
     varying vec2 vTexCoord;
@@ -344,8 +346,9 @@ class GLCanvasRenderer {
     this.drawShape = new GLRectangle(gl, 2.0, 2.0, this.drawShader);
 
     this.radiusSquared = 169;
-    this.startingColor = new Float32Array([0.66666, 0.66666, 0.66666]);
-    this.colorOverlapDecrement = new Float32Array([0.0705882353, 0.0705882353, 0.0705882353]);
+    this.startingColor = new Float32Array([0.66, 0.66, 0.66]);
+    this.colorOverlapDecrement = new Float32Array([0.07, 0.07, 0.07]);
+    this.shouldRenderLines = false;
 
     // Create interim texture
     this.interimTexture = this.gl.createTexture();
@@ -442,29 +445,37 @@ class GLCanvasRenderer {
     this.drawShader.uniformLocationCache.set("uTexture", this.gl.getUniformLocation(this.drawShader.getProgram(), "uTexture"))
 
     this.linesRenderShader.uniformLocationCache.set("uTexture", this.gl.getUniformLocation(this.linesRenderShader.getProgram(), "uTexture"));
-    this.linesRenderShader.uniformLocationCache.set("uPosition", this.gl.getUniformLocation(this.linesRenderShader.getProgram(), "uPosition"));
+    this.linesRenderShader.uniformLocationCache.set("uPositions", this.gl.getUniformLocation(this.linesRenderShader.getProgram(), "uPositions"));
     this.linesRenderShader.uniformLocationCache.set("uLastPosition", this.gl.getUniformLocation(this.linesRenderShader.getProgram(), "uLastPosition"));
+    this.linesRenderShader.uniformLocationCache.set("uStartingColor", this.gl.getUniformLocation(this.linesRenderShader.getProgram(), "uStartingColor"));
     this.linesRenderShader.uniformLocationCache.set("uRadiusSquared", this.gl.getUniformLocation(this.linesRenderShader.getProgram(), "uRadiusSquared"));
     this.linesRenderShader.uniformLocationCache.set("uColorDecrement", this.gl.getUniformLocation(this.linesRenderShader.getProgram(), "uColorDecrement"));
 
     this.linesRenderMultipleShader.uniformLocationCache.set("uTexture", this.gl.getUniformLocation(this.linesRenderMultipleShader.getProgram(), "uTexture"));
-    this.linesRenderMultipleShader.uniformLocationCache.set("uPosition", this.gl.getUniformLocation(this.linesRenderMultipleShader.getProgram(), "uPosition"));
+    this.linesRenderMultipleShader.uniformLocationCache.set("uPositions", this.gl.getUniformLocation(this.linesRenderMultipleShader.getProgram(), "uPositions"));
     this.linesRenderMultipleShader.uniformLocationCache.set("uLastPosition", this.gl.getUniformLocation(this.linesRenderMultipleShader.getProgram(), "uLastPosition"));
+    this.linesRenderMultipleShader.uniformLocationCache.set("uStartingColor", this.gl.getUniformLocation(this.linesRenderMultipleShader.getProgram(), "uStartingColor"));
     this.linesRenderMultipleShader.uniformLocationCache.set("uRadiusSquared", this.gl.getUniformLocation(this.linesRenderMultipleShader.getProgram(), "uRadiusSquared"));
     this.linesRenderMultipleShader.uniformLocationCache.set("uColorDecrement", this.gl.getUniformLocation(this.linesRenderMultipleShader.getProgram(), "uColorDecrement"));
 
     this.circlesRenderShader.uniformLocationCache.set("uTexture", this.gl.getUniformLocation(this.circlesRenderShader.getProgram(), "uTexture"));
-    this.circlesRenderShader.uniformLocationCache.set("uPosition", this.gl.getUniformLocation(this.circlesRenderShader.getProgram(), "uPosition"));
+    this.circlesRenderShader.uniformLocationCache.set("uPositions", this.gl.getUniformLocation(this.circlesRenderShader.getProgram(), "uPositions"));
+    this.circlesRenderShader.uniformLocationCache.set("uStartingColor", this.gl.getUniformLocation(this.circlesRenderShader.getProgram(), "uStartingColor"));
     this.circlesRenderShader.uniformLocationCache.set("uRadiusSquared", this.gl.getUniformLocation(this.circlesRenderShader.getProgram(), "uRadiusSquared"));
     this.circlesRenderShader.uniformLocationCache.set("uColorDecrement", this.gl.getUniformLocation(this.circlesRenderShader.getProgram(), "uColorDecrement"));
 
     this.circlesRenderMultipleShader.uniformLocationCache.set("uTexture", this.gl.getUniformLocation(this.circlesRenderMultipleShader.getProgram(), "uTexture"));
-    this.circlesRenderMultipleShader.uniformLocationCache.set("uPosition", this.gl.getUniformLocation(this.circlesRenderMultipleShader.getProgram(), "uPosition"));
+    this.circlesRenderMultipleShader.uniformLocationCache.set("uPositions", this.gl.getUniformLocation(this.circlesRenderMultipleShader.getProgram(), "uPositions"));
+    this.circlesRenderMultipleShader.uniformLocationCache.set("uStartingColor", this.gl.getUniformLocation(this.circlesRenderMultipleShader.getProgram(), "uStartingColor"));
     this.circlesRenderMultipleShader.uniformLocationCache.set("uRadiusSquared", this.gl.getUniformLocation(this.circlesRenderMultipleShader.getProgram(), "uRadiusSquared"));
     this.circlesRenderMultipleShader.uniformLocationCache.set("uColorDecrement", this.gl.getUniformLocation(this.circlesRenderMultipleShader.getProgram(), "uColorDecrement"));
 
     this.positionUniform = new Float32Array([0.0, 0.0]);
     this.lastPositionUniform = new Float32Array([-10000.0, -10000.0]);
+  }
+
+  initialize() {
+    
   }
 
   setRadiusPixels(newWidth) {
@@ -486,6 +497,11 @@ class GLCanvasRenderer {
     this.lastPositionUniform[1] = -10000.0;
   }
 
+  // If renderLines = true, then draws lines, otherwise, draws circles
+  setShouldRenderLines(renderLines) {
+    this.shouldRenderLines = renderLines;
+  }
+
   clearTexture() {
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.finalFramebuffer);
 
@@ -497,8 +513,7 @@ class GLCanvasRenderer {
     this.gl.clear(this.gl.COLOR_BUFFER_BIT);
   }
 
-  // If renderLines = true, then draws lines, otherwise, draws circles
-  render(renderLines, positionX, positionY) {
+  render(positionX, positionY) {
     // First we draw to the interim framebuffer
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.interimFramebuffer);
 
@@ -507,11 +522,8 @@ class GLCanvasRenderer {
     this.gl.clearColor(0.0, 0.0, 0.0, 0.0);
     this.gl.clear(this.gl.COLOR_BUFFER_BIT);
 
-    if (renderLines) {
-      this.linesRenderShader.bind();
-    } else {
-      this.circlesRenderShader.bind();
-    }
+    const shaderToUse = this.shouldRenderLines ? this.linesRenderShader : this.circlesRenderShader;
+    shaderToUse.bind();
 
     if (this.lastPositionUniform[0] == -10000.0) {
       this.lastPositionUniform[0] = positionX;
@@ -519,18 +531,16 @@ class GLCanvasRenderer {
     }
     this.positionUniform[0] = positionX;
     this.positionUniform[1] = positionY;
-    if (renderLines) {
-      this.gl.uniform2fv(this.linesRenderShader.uniformLocationCache.get("uPositions"), this.positionUniform);
+    
+    this.gl.uniform2fv(shaderToUse.uniformLocationCache.get("uPositions"), this.positionUniform);
+    this.gl.uniform1f(shaderToUse.uniformLocationCache.get("uRadiusSquared"), this.radiusSquared);
+    this.gl.uniform3fv(shaderToUse.uniformLocationCache.get("uStartingColor"), this.startingColor);
+    this.gl.uniform3fv(shaderToUse.uniformLocationCache.get("uColorDecrement"), this.colorOverlapDecrement);
+
+    if (this.shouldRenderLines) {
       this.gl.uniform2fv(this.linesRenderShader.uniformLocationCache.get("uLastPosition"), this.lastPositionUniform);
-      this.gl.uniform1f(this.linesRenderShader.uniformLocationCache.get("uRadiusSquared"), this.radiusSquared);
-      this.gl.uniform3fv(this.linesRenderShader.uniformLocationCache.get("uStartingColor"), this.startingColor);
-      this.gl.uniform3fv(this.linesRenderShader.uniformLocationCache.get("uColorDecrement"), this.colorOverlapDecrement);
-    } else {
-      this.gl.uniform2fv(this.circlesRenderShader.uniformLocationCache.get("uPositions"), this.positionUniform);
-      this.gl.uniform1f(this.circlesRenderShader.uniformLocationCache.get("uRadiusSquared"), this.radiusSquared);
-      this.gl.uniform3fv(this.circlesRenderShader.uniformLocationCache.get("uStartingColor"), this.startingColor);
-      this.gl.uniform3fv(this.circlesRenderShader.uniformLocationCache.get("uColorDecrement"), this.colorOverlapDecrement);
     }
+
     this.lastPositionUniform[0] = this.positionUniform[0];
     this.lastPositionUniform[1] = this.positionUniform[1];
 
@@ -538,19 +548,11 @@ class GLCanvasRenderer {
     // Pull data from the final texture (since we are drawing to the interim one) this final texture
     // data should be the entire render not including this current "frame".
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.finalTexture);
-    if (renderLines) {
-      this.gl.uniform1i(this.linesRenderShader.uniformLocationCache.get("uTexture"), 0);
-    } else {
-      this.gl.uniform1i(this.circlesRenderShader.uniformLocationCache.get("uTexture"), 0);
-    }
+    this.gl.uniform1i(shaderToUse.uniformLocationCache.get("uTexture"), 0);
 
-    if (renderLines) {
-      this.linesRenderShape.bind();
-      this.linesRenderShape.draw()
-    } else {
-      this.circlesRenderShape.bind();
-      this.circlesRenderShape.draw()
-    }
+    const shapeToUse = this.shouldRenderLines ? this.linesRenderShape : this.circlesRenderShape;
+    shapeToUse.bind();
+    shapeToUse.draw();
 
     // Then we copy the interim framebuffer to the final framebuffer with a simple "draw" pass
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.finalFramebuffer);
@@ -571,6 +573,7 @@ class GLCanvasRenderer {
   }
 
   // Expects one Float32Array of format [x1, y1, x2, y2, x3, y3, ..., xn, yn]
+  // Must be size of a multiple of 2
   renderMultiple(positions) {
     if (positions.length < 2 || positions.length % 2 != 0) {
       console.log("Invalid positions array passed into renderMultiple, must be at least two values, and an even size")
@@ -584,37 +587,35 @@ class GLCanvasRenderer {
     this.gl.clearColor(0.0, 0.0, 0.0, 0.0);
     this.gl.clear(this.gl.COLOR_BUFFER_BIT);
 
-    this.renderMultipleShader.bind();
-    if (this.renderMultiplePositionUniformLocation == null) {
-      this.renderMultiplePositionUniformLocation = this.gl.getUniformLocation(this.renderMultipleShader.getProgram(), "uPositions");
-      this.renderMultipleLastPositionUniformLocation = this.gl.getUniformLocation(this.renderMultipleShader.getProgram(), "uLastPosition");
-      this.renderMultipleTextureUniformLocation = this.gl.getUniformLocation(this.renderMultipleShader.getProgram(), "uTexture");
+    const shaderToUse = this.shouldRenderLines ? this.linesRenderMultipleShader : this.circlesRenderMultipleShader;
+    shaderToUse.bind();
 
-      this.renderMultipleLineWidthUniformLocation = this.gl.getUniformLocation(this.renderMultipleShader.getProgram(), "uRadiusSquared");
-      this.renderMultipleStartingColorUniformLocation = this.gl.getUniformLocation(this.renderMultipleShader.getProgram(), "uStartingColor");
-      this.renderMultipleColorDecrementUniformLocation = this.gl.getUniformLocation(this.renderMultipleShader.getProgram(), "uColorDecrement");
-    }
     if (this.lastPositionUniform[0] == -10000.0) {
       this.lastPositionUniform[0] = positions[0];
       this.lastPositionUniform[1] = positions[1];
     }
-    this.gl.uniform2fv(this.renderMultiplePositionUniformLocation, positions);
-    this.gl.uniform2fv(this.renderMultipleLastPositionUniformLocation, this.lastPositionUniform);
+    
+    this.gl.uniform2fv(shaderToUse.uniformLocationCache.get("uPositions"), positions);
+    this.gl.uniform1f(shaderToUse.uniformLocationCache.get("uRadiusSquared"), this.radiusSquared);
+    this.gl.uniform3fv(shaderToUse.uniformLocationCache.get("uStartingColor"), this.startingColor);
+    this.gl.uniform3fv(shaderToUse.uniformLocationCache.get("uColorDecrement"), this.colorOverlapDecrement);
+
+    if (this.shouldRenderLines) {
+      this.gl.uniform2fv(this.linesRenderMultipleShader.uniformLocationCache.get("uLastPosition"), this.lastPositionUniform);
+    }
+
     this.lastPositionUniform[0] = positions[positions.length - 2];
     this.lastPositionUniform[1] = positions[positions.length - 1];
-
-    this.gl.uniform1f(this.renderMultipleLineWidthUniformLocation, this.lineWidthSquared);
-    this.gl.uniform3fv(this.renderMultipleStartingColorUniformLocation, this.lineStartingColor);
-    this.gl.uniform3fv(this.renderMultipleColorDecrementUniformLocation, this.lineColorOverlapDecrement);
 
     this.gl.activeTexture(this.gl.TEXTURE0);
     // Pull data from the final texture (since we are drawing to the interim one) this final texture
     // data should be the entire render not including this current "frame".
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.finalTexture);
-    this.gl.uniform1i(this.renderMultipleTextureUniformLocation, 0);
+    this.gl.uniform1i(shaderToUse.uniformLocationCache.get("uTexture"), 0);
 
-    this.renderMultipleShape.bind();
-    this.renderMultipleShape.draw()
+    const shapeToUse = this.shouldRenderLines ? this.linesRenderMultipleShape : this.circlesRenderMultipleShape;
+    shapeToUse.bind();
+    shapeToUse.draw()
 
     // Then we copy the interim framebuffer to the final framebuffer with a simple "draw" pass
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.finalFramebuffer);
@@ -746,7 +747,7 @@ const rSliderValue = document.getElementById('rSliderValue');
 // Update the value display when the slider changes
 rSlider.addEventListener('input', () => {
   rSliderValue.textContent = rSlider.value;
-  cm.renderer.lineStartingColor[0] = rSlider.value;
+  cm.renderer.startingColor[0] = rSlider.value;
 });
 
 // Get slider and display element
@@ -756,7 +757,7 @@ const rDecSliderValue = document.getElementById('rDecSliderValue');
 // Update the value display when the slider changes
 rDecSlider.addEventListener('input', () => {
   rDecSliderValue.textContent = rDecSlider.value;
-  cm.renderer.lineColorOverlapDecrement[0] = rDecSlider.value;
+  cm.renderer.colorOverlapDecrement[0] = rDecSlider.value;
 });
 
 
@@ -768,7 +769,7 @@ const gSliderValue = document.getElementById('gSliderValue');
 // Update the value display when the slider changes
 gSlider.addEventListener('input', () => {
   gSliderValue.textContent = gSlider.value;
-  cm.renderer.lineStartingColor[1] = gSlider.value;
+  cm.renderer.startingColor[1] = gSlider.value;
 });
 
 // Get slider and display element
@@ -778,7 +779,7 @@ const gDecSliderValue = document.getElementById('gDecSliderValue');
 // Update the value display when the slider changes
 gDecSlider.addEventListener('input', () => {
   gDecSliderValue.textContent = gDecSlider.value;
-  cm.renderer.lineColorOverlapDecrement[1] = gDecSlider.value;
+  cm.renderer.colorOverlapDecrement[1] = gDecSlider.value;
 });
 
 
@@ -790,7 +791,7 @@ const bSliderValue = document.getElementById('bSliderValue');
 // Update the value display when the slider changes
 bSlider.addEventListener('input', () => {
   bSliderValue.textContent = bSlider.value;
-  cm.renderer.lineStartingColor[2] = bSlider.value;
+  cm.renderer.startingColor[2] = bSlider.value;
 });
 
 // Get slider and display element
@@ -800,7 +801,7 @@ const bDecSliderValue = document.getElementById('bDecSliderValue');
 // Update the value display when the slider changes
 bDecSlider.addEventListener('input', () => {
   bDecSliderValue.textContent = bDecSlider.value;
-  cm.renderer.lineColorOverlapDecrement[2] = bDecSlider.value;
+  cm.renderer.colorOverlapDecrement[2] = bDecSlider.value;
 });
 
 const lineWidthInput = document.getElementById('lineWidthInput');
@@ -810,13 +811,20 @@ lineWidthInput.addEventListener('input', () => {
   cm.renderer.setRadiusPixels(lineWidthInput.value);
 });
 
+const linesSelectorInput = document.getElementById('linesSelectorInput');
+
+// Display the value when changed
+linesSelectorInput.addEventListener('change', (e) => {
+  cm.renderer.setShouldRenderLines(e.target.checked);
+});
+
 function generate() {
   Profiler.profileFunction("Total Generation Time", () => {
     const p = new Profiler();
   
     var temp = new Float32Array(512);
-    for (var j = 0; j < 256; ++j) {
-      for (var i = 0; i < 512; ++i) {
+    for (var j = 0; j < 128; ++j) {
+      for (var i = 0; i < 1018; ++i) {
         if (i % 2 == 0) {
           temp[i] = Math.floor(Math.random() * 640.0);
         } else {
