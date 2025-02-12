@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebGL Demo</title>
+  <script src="webgl-demo.js" type="module"></script>
+  <style>
+    canvas {
+      border: 2px solid #000;
+      cursor: crosshair;
+    }
+  </style>
+</head>
+
+<body style="background-color: #c8c8c8">
+  <canvas id="gl-canvas" width="640" height="480"></canvas>
+  <div>
+    <button onclick="generateRandom()" type="button">Generate</button>
+    <button onclick="clearCanvas()" type="button">Clear</button>
+  </div>
+  <div style="display: table;">
+    <div style="display: table-row;">
+      <div style="display: table-cell;">
+        <input type="range" id="rSlider" min="0" max="1" step="0.01" value="0.66">
+      </div>
+      <div style="display: table-cell;">
+        <input type="range" id="rDecSlider" min="0" max="1" step="0.01" value="0.07">
+      </div>
+    </div>
+    <div style="display: table-row;">
+      <div style="display: table-cell;">
+        <p>R: <span id="rSliderValue">0.66</span></p>
+      </div>
+      <div style="display: table-cell;">
+        <p>R Decrement: <span id="rDecSliderValue">0.07</span></p>
+      </div>
+    </div>
+
+    <div style="display: table-row;">
+      <div style="display: table-cell;">
+        <input type="range" id="gSlider" min="0" max="1" step="0.01" value="0.66">
+      </div>
+      <div style="display: table-cell;">
+        <input type="range" id="gDecSlider" min="0" max="1" step="0.01" value="0.07">
+      </div>
+    </div>
+    <div style="display: table-row;">
+      <div style="display: table-cell;">
+        <p>G: <span id="gSliderValue">0.66</span></p>
+      </div>
+      <div style="display: table-cell;">
+        <p>G Decrement: <span id="gDecSliderValue">0.07</span></p>
+      </div>
+    </div>
+
+    <div style="display: table-row;">
+      <div style="display: table-cell;">
+        <input type="range" id="bSlider" min="0" max="1" step="0.01" value="0.66">
+      </div>
+      <div style="display: table-cell;">
+        <input type="range" id="bDecSlider" min="0" max="1" step="0.01" value="0.07">
+      </div>
+    </div>
+    <div style="display: table-row;">
+      <div style="display: table-cell;">
+        <p>B: <span id="bSliderValue">0.66</span></p>
+      </div>
+      <div style="display: table-cell;">
+        <p>B Decrement: <span id="bDecSliderValue">0.07</span></p>
+      </div>
+    </div>
+    <div style="display: table-row;">
+      <div style="display: table-cell;">
+        <p>Line Width</p>
+      </div>
+      <div style="display: table-cell;">
+        <input type="number" id="lineWidthInput" step="1" value="2">
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>
