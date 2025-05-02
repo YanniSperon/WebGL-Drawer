@@ -106,7 +106,7 @@ class GLRenderShaderSourceGenerator {
 
   static getMultipleRenderFragmentShaderSrc(isLines, screenWidth, screenHeight, maxFragmentUniformVectors) {
     const positionsSize = (Math.max(isLines ? (maxFragmentUniformVectors - 6) : (maxFragmentUniformVectors - 5), 1));
-    
+
     return `
     #define SCREEN_WIDTH ` + screenWidth + `
     #define SCREEN_HEIGHT ` + screenHeight + `
@@ -179,6 +179,8 @@ class GLShader {
     this.updated = false;
 
     this.uniformLocationCache = new Map();
+
+    this.initialize();
   }
 
   delete() {
@@ -200,7 +202,7 @@ class GLShader {
     this.updated = false;
   }
 
-  generate() {
+  initialize() {
     this.delete();
 
     this.vertexShader = GLShader.createShaderGL(this.gl, this.gl.VERTEX_SHADER, this.vertSrc);
@@ -225,14 +227,14 @@ class GLShader {
 
   getProgram() {
     if (!this.updated) {
-      this.generate();
+      this.initialize();
     }
     return this.program;
   }
 
   bind() {
     if (!this.updated) {
-      this.generate();
+      this.initialize();
     }
     this.gl.useProgram(this.program);
   }
@@ -260,6 +262,10 @@ class GLShape {
   }
 
   draw() {
+
+  }
+
+  delete() {
 
   }
 }
@@ -299,14 +305,14 @@ class GLRectangle extends GLShape {
     this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, this.indices, this.gl.STATIC_DRAW);
 
     // For now just use attributes outlined in default shaders
-    const aPosition = this.gl.getAttribLocation(this.shader.getProgram(), 'aPosition');
-    const aTexCoord = this.gl.getAttribLocation(this.shader.getProgram(), 'aTexCoord');
+    this.aPosition = this.gl.getAttribLocation(this.shader.getProgram(), 'aPosition');
+    this.aTexCoord = this.gl.getAttribLocation(this.shader.getProgram(), 'aTexCoord');
 
-    this.gl.vertexAttribPointer(aPosition, 2, this.gl.FLOAT, false, 4 * Float32Array.BYTES_PER_ELEMENT, 0);
-    this.gl.enableVertexAttribArray(aPosition);
+    this.gl.vertexAttribPointer(this.aPosition, 2, this.gl.FLOAT, false, 4 * Float32Array.BYTES_PER_ELEMENT, 0);
+    this.gl.enableVertexAttribArray(this.aPosition);
 
-    this.gl.vertexAttribPointer(aTexCoord, 2, this.gl.FLOAT, false, 4 * Float32Array.BYTES_PER_ELEMENT, 2 * Float32Array.BYTES_PER_ELEMENT);
-    this.gl.enableVertexAttribArray(aTexCoord);
+    this.gl.vertexAttribPointer(this.aTexCoord, 2, this.gl.FLOAT, false, 4 * Float32Array.BYTES_PER_ELEMENT, 2 * Float32Array.BYTES_PER_ELEMENT);
+    this.gl.enableVertexAttribArray(this.aTexCoord);
   }
 
   bind() {
@@ -317,6 +323,100 @@ class GLRectangle extends GLShape {
   draw() {
     this.gl.drawElements(this.gl.TRIANGLES, this.indices.length, this.gl.UNSIGNED_SHORT, 0);
   }
+
+  delete() {
+    // Create and bind a vertex buffer
+    this.vertexBuffer = this.gl.createBuffer();
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer);
+    this.gl.bufferData(this.gl.ARRAY_BUFFER, this.vertices, this.gl.STATIC_DRAW);
+
+    // Create and bind an index buffer
+    this.indexBuffer = this.gl.createBuffer();
+    this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
+    this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, this.indices, this.gl.STATIC_DRAW);
+
+    // For now just use attributes outlined in default shaders
+    const aPosition = this.gl.getAttribLocation(this.shader.getProgram(), 'aPosition');
+    const aTexCoord = this.gl.getAttribLocation(this.shader.getProgram(), 'aTexCoord');
+
+    this.gl.vertexAttribPointer(aPosition, 2, this.gl.FLOAT, false, 4 * Float32Array.BYTES_PER_ELEMENT, 0);
+    this.gl.enableVertexAttribArray(aPosition);
+
+    this.gl.vertexAttribPointer(aTexCoord, 2, this.gl.FLOAT, false, 4 * Float32Array.BYTES_PER_ELEMENT, 2 * Float32Array.BYTES_PER_ELEMENT);
+    this.gl.enableVertexAttribArray(aTexCoord);
+
+    this.gl.disableVertexAttribArray(this.aPosition);
+    this.gl.disableVertexAttribArray(this.aTexCoord);
+
+    this.gl.deleteBuffer(this.vertexBuffer);
+    this.vertexBuffer = null;
+
+    this.gl.deleteBuffer(this.indexBuffer);
+    this.indexBuffer = null;
+  }
+}
+
+class GLFramebuffer {
+  constructor(gl, width, height) {
+    this.gl = gl;
+    this.width = width;
+    this.height = height;
+
+    this.texture = this.gl.createTexture();
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.texture);
+
+    this.gl.texImage2D(
+      this.gl.TEXTURE_2D,
+      0,                        // Mipmap level
+      this.gl.RGBA,             // Internal format
+      this.width,               // Texture width
+      this.height,              // Texture height
+      0,                        // Border
+      this.gl.RGBA,             // Format of data
+      this.gl.UNSIGNED_BYTE,    // Type of data
+      null                      // No data yet
+    );
+
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+
+    this.gl.bindTexture(this.gl.TEXTURE_2D, null); // Unbind
+
+    this.framebuffer = this.gl.createFramebuffer();
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffer);
+
+    this.gl.framebufferTexture2D(
+      this.gl.FRAMEBUFFER,
+      this.gl.COLOR_ATTACHMENT0,      // Attachment point
+      this.gl.TEXTURE_2D,             // Target texture type
+      this.texture,                   // Texture to attach
+      0                               // Mipmap level
+    );
+
+    if (this.gl.checkFramebufferStatus(this.gl.FRAMEBUFFER) !== this.gl.FRAMEBUFFER_COMPLETE) {
+      console.error("Framebuffer is not complete");
+    }
+
+    this.gl.viewport(0, 0, this.width, this.height);
+    this.gl.clearColor(0.0, 0.0, 0.0, 0.0);
+    this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+
+    this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, null);
+  }
+
+  delete() {
+    this.gl.deleteTexture(this.texture);
+    this.texture = null;
+
+    this.gl.deleteFramebuffer(this.framebuffer);
+    this.framebuffer = null;
+
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+    this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, null);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+  }
 }
 
 class GLCanvasRenderer {
@@ -324,123 +424,79 @@ class GLCanvasRenderer {
     this.gl = gl;
     this.width = width;
     this.height = height;
+    this.maxFragmentUniformVectors = maxFragmentUniformVectors;
+    this.isInitialized = false;
 
-    this.linesRenderShader = new GLShader(gl, GLRenderShaderSourceGenerator.getMultipleRenderVertexShaderSrc(), GLRenderShaderSourceGenerator.getMultipleRenderFragmentShaderSrc(true, width, height, 1));
-    this.linesRenderShader.generate();
-    this.linesRenderMultipleShader = new GLShader(gl, GLRenderShaderSourceGenerator.getMultipleRenderVertexShaderSrc(), GLRenderShaderSourceGenerator.getMultipleRenderFragmentShaderSrc(true, width, height, maxFragmentUniformVectors));
-    this.linesRenderMultipleShader.generate();
+    this.initialize();
+  }
 
-    this.circlesRenderShader = new GLShader(gl, GLRenderShaderSourceGenerator.getMultipleRenderVertexShaderSrc(), GLRenderShaderSourceGenerator.getMultipleRenderFragmentShaderSrc(false, width, height, 1));
-    this.circlesRenderShader.generate();
-    this.circlesRenderMultipleShader = new GLShader(gl, GLRenderShaderSourceGenerator.getMultipleRenderVertexShaderSrc(), GLRenderShaderSourceGenerator.getMultipleRenderFragmentShaderSrc(false, width, height, maxFragmentUniformVectors));
-    this.circlesRenderMultipleShader.generate();
+  delete() {
+    if (!this.isInitialized) {
+      return;
+    }
 
-    this.drawShader = new GLShader(gl, GLDrawShaderSourceGenerator.getDrawVertexShaderSrc(), GLDrawShaderSourceGenerator.getDrawFragmentShaderSrc());
-    this.drawShader.generate();
+    this.linesRenderShader.delete();
+    this.linesRenderMultipleShader.delete();
 
-    this.linesRenderShape = new GLRectangle(gl, 2.0, 2.0, this.linesRenderShader);
-    this.linesRenderMultipleShape = new GLRectangle(gl, 2.0, 2.0, this.linesRenderMultipleShader);
-    this.circlesRenderShape = new GLRectangle(gl, 2.0, 2.0, this.circlesRenderShader);
-    this.circlesRenderMultipleShape = new GLRectangle(gl, 2.0, 2.0, this.circlesRenderMultipleShader);
-    
-    this.drawShape = new GLRectangle(gl, 2.0, 2.0, this.drawShader);
+    this.circlesRenderShader.delete();
+    this.circlesRenderMultipleShader.delete();
 
-    this.radiusSquared = 169;
-    this.startingColor = new Float32Array([0.66, 0.66, 0.66]);
-    this.colorOverlapDecrement = new Float32Array([0.07, 0.07, 0.07]);
-    this.shouldRenderLines = false;
+    this.drawShader.delete();
 
-    // Create interim texture
-    this.interimTexture = this.gl.createTexture();
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.interimTexture);
+    this.linesRenderShape.delete();
+    this.linesRenderMultipleShape.delete();
 
-    this.gl.texImage2D(
-      this.gl.TEXTURE_2D,
-      0,                        // Mipmap level
-      this.gl.RGBA,             // Internal format
-      this.width,               // Texture width
-      this.height,              // Texture height
-      0,                        // Border
-      this.gl.RGBA,             // Format of data
-      this.gl.UNSIGNED_BYTE,    // Type of data
-      null                      // No data yet
-    );
+    this.circlesRenderShape.delete();
+    this.circlesRenderMultipleShape.delete();
 
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+    this.drawShape.delete();
 
-    this.gl.bindTexture(this.gl.TEXTURE_2D, null); // Unbind
+    this.interimFramebuffer.delete();
+
+    for (const i = 0; i < this.finalFramebuffers.length; ++i) {
+      this.finalFramebuffers[i].delete();
+    }
+
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+    this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, null);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+
+    this.isInitialized = false;
+  }
+
+  initialize() {
+    this.delete();
+
+    this.activeScene = 0;
+    this.linesRenderShader = new GLShader(this.gl, GLRenderShaderSourceGenerator.getMultipleRenderVertexShaderSrc(), GLRenderShaderSourceGenerator.getMultipleRenderFragmentShaderSrc(true, this.width, this.height, 1));
+    this.linesRenderMultipleShader = new GLShader(this.gl, GLRenderShaderSourceGenerator.getMultipleRenderVertexShaderSrc(), GLRenderShaderSourceGenerator.getMultipleRenderFragmentShaderSrc(true, this.width, this.height, this.maxFragmentUniformVectors));
+
+    this.circlesRenderShader = new GLShader(this.gl, GLRenderShaderSourceGenerator.getMultipleRenderVertexShaderSrc(), GLRenderShaderSourceGenerator.getMultipleRenderFragmentShaderSrc(false, this.width, this.height, 1));
+    this.circlesRenderMultipleShader = new GLShader(this.gl, GLRenderShaderSourceGenerator.getMultipleRenderVertexShaderSrc(), GLRenderShaderSourceGenerator.getMultipleRenderFragmentShaderSrc(false, this.width, this.height, this.maxFragmentUniformVectors));
+
+    this.drawShader = new GLShader(this.gl, GLDrawShaderSourceGenerator.getDrawVertexShaderSrc(), GLDrawShaderSourceGenerator.getDrawFragmentShaderSrc());
+
+    this.linesRenderShape = new GLRectangle(this.gl, 2.0, 2.0, this.linesRenderShader);
+    this.linesRenderMultipleShape = new GLRectangle(this.gl, 2.0, 2.0, this.linesRenderMultipleShader);
+    this.circlesRenderShape = new GLRectangle(this.gl, 2.0, 2.0, this.circlesRenderShader);
+    this.circlesRenderMultipleShape = new GLRectangle(this.gl, 2.0, 2.0, this.circlesRenderMultipleShader);
+
+    this.drawShape = new GLRectangle(this.gl, 2.0, 2.0, this.drawShader);
 
 
-    // Create final texture
-    this.finalTexture = this.gl.createTexture();
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.finalTexture);
-
-    this.gl.texImage2D(
-      this.gl.TEXTURE_2D,
-      0,                        // Mipmap level
-      this.gl.RGBA,             // Internal format
-      this.width,               // Texture width
-      this.height,              // Texture height
-      0,                        // Border
-      this.gl.RGBA,             // Format of data
-      this.gl.UNSIGNED_BYTE,    // Type of data
-      null                      // No data yet
-    );
-
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
-
-    this.gl.bindTexture(this.gl.TEXTURE_2D, null); // Unbind
-
+    if (!this.shouldRenderLines) {
+      this.radiusSquared = 169;
+      this.startingColor = new Float32Array([0.66, 0.66, 0.66]);
+      this.colorOverlapDecrement = new Float32Array([0.07, 0.07, 0.07]);
+      this.shouldRenderLines = false;
+    }
 
     // Create interim framebuffer
-    this.interimFramebuffer = this.gl.createFramebuffer();
-    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.interimFramebuffer);
+    this.interimFramebuffer = new GLFramebuffer(this.gl, this.width, this.height);
 
-    this.gl.framebufferTexture2D(
-      this.gl.FRAMEBUFFER,
-      this.gl.COLOR_ATTACHMENT0,      // Attachment point
-      this.gl.TEXTURE_2D,             // Target texture type
-      this.interimTexture,            // Texture to attach
-      0                               // Mipmap level
-    );
-
-    if (this.gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== this.gl.FRAMEBUFFER_COMPLETE) {
-      console.error("Framebuffer is not complete");
-    }
-
-    gl.viewport(0, 0, this.width, this.height);
-    gl.clearColor(0.0, 0.0, 0.0, 0.0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-
-    this.gl.bindRenderbuffer(gl.RENDERBUFFER, null);
-
-    // Create final framebuffer
-    this.finalFramebuffer = this.gl.createFramebuffer();
-    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.finalFramebuffer);
-
-    this.gl.framebufferTexture2D(
-      this.gl.FRAMEBUFFER,
-      this.gl.COLOR_ATTACHMENT0,      // Attachment point
-      this.gl.TEXTURE_2D,             // Target texture type
-      this.finalTexture,              // Texture to attach
-      0                               // Mipmap level
-    );
-
-    if (this.gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== this.gl.FRAMEBUFFER_COMPLETE) {
-      console.error("Framebuffer is not complete");
-    }
-
-    gl.viewport(0, 0, this.width, this.height);
-    gl.clearColor(0.0, 0.0, 0.0, 0.0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-
-    this.gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+    this.finalFramebuffers = [];
+    // Create first output framebuffer (active scene 0)
+    this.finalFramebuffers.push(new GLFramebuffer(this.gl, this.width, this.height));
 
     this.drawShader.uniformLocationCache.set("uTexture", this.gl.getUniformLocation(this.drawShader.getProgram(), "uTexture"))
 
@@ -472,10 +528,16 @@ class GLCanvasRenderer {
 
     this.positionUniform = new Float32Array([0.0, 0.0]);
     this.lastPositionUniform = new Float32Array([-10000.0, -10000.0]);
+
+    this.isInitialized = true;
   }
 
-  initialize() {
-    
+  // Deletes all saved framebuffers
+  resize(width, height) {
+    this.width = width;
+    this.height = height;
+
+    this.initialize();
   }
 
   setRadiusPixels(newWidth) {
@@ -502,8 +564,45 @@ class GLCanvasRenderer {
     this.shouldRenderLines = renderLines;
   }
 
+  getActiveScene() {
+    return this.activeScene;
+  }
+
+  setActiveScene(activeScene) {
+    if (activeScene >= 0 && activeScene < this.finalFramebuffers.length) {
+      this.activeScene = activeScene;
+    } else {
+      console.log("Attempted to set active scene with index " + activeScene + " which does not exist.");
+    }
+  }
+
+  addScene() {
+    this.finalFramebuffers.push(new GLFramebuffer(this.gl, this.width, this.height));
+  }
+
+  removeScene(sceneIndex) {
+    if (sceneIndex >= 0 && sceneIndex < this.finalFramebuffers.length) {
+      if (this.finalFramebuffers.length === 1) {
+        // Cannot remove, must just clear, this implies the current active scene = 0 (the only scene)
+        this.clearTexture();
+      } else {
+        if (this.activeScene >= sceneIndex) {
+          this.activeScene = Math.max(0, this.activeScene - 1);
+        }
+        this.finalFramebuffers[sceneIndex].delete();
+        this.finalFramebuffers.splice(sceneIndex, 1);
+      }
+    } else {
+      console.log("Attempted to remove scene with index " + sceneIndex + " which does not exist.");
+    }
+  }
+
+  getNumScenes() {
+    return this.finalFramebuffers.length;
+  }
+
   clearTexture() {
-    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.finalFramebuffer);
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.finalFramebuffers[this.activeScene].framebuffer);
 
     // Set the viewport to match the texture size
     this.gl.viewport(0, 0, this.width, this.height);
@@ -515,7 +614,7 @@ class GLCanvasRenderer {
 
   render(positionX, positionY) {
     // First we draw to the interim framebuffer
-    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.interimFramebuffer);
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.interimFramebuffer.framebuffer);
 
     this.gl.viewport(0, 0, this.width, this.height);
 
@@ -531,7 +630,7 @@ class GLCanvasRenderer {
     }
     this.positionUniform[0] = positionX;
     this.positionUniform[1] = positionY;
-    
+
     this.gl.uniform2fv(shaderToUse.uniformLocationCache.get("uPositions"), this.positionUniform);
     this.gl.uniform1f(shaderToUse.uniformLocationCache.get("uRadiusSquared"), this.radiusSquared);
     this.gl.uniform3fv(shaderToUse.uniformLocationCache.get("uStartingColor"), this.startingColor);
@@ -547,7 +646,7 @@ class GLCanvasRenderer {
     this.gl.activeTexture(this.gl.TEXTURE0);
     // Pull data from the final texture (since we are drawing to the interim one) this final texture
     // data should be the entire render not including this current "frame".
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.finalTexture);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.finalFramebuffers[this.activeScene].texture);
     this.gl.uniform1i(shaderToUse.uniformLocationCache.get("uTexture"), 0);
 
     const shapeToUse = this.shouldRenderLines ? this.linesRenderShape : this.circlesRenderShape;
@@ -555,7 +654,7 @@ class GLCanvasRenderer {
     shapeToUse.draw();
 
     // Then we copy the interim framebuffer to the final framebuffer with a simple "draw" pass
-    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.finalFramebuffer);
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.finalFramebuffers[this.activeScene].framebuffer);
 
     this.gl.viewport(0, 0, this.width, this.height);
 
@@ -563,7 +662,7 @@ class GLCanvasRenderer {
 
     this.gl.activeTexture(this.gl.TEXTURE0);
     // Use the interim texture so we are drawing from our rendered output
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.interimTexture);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.interimFramebuffer.texture);
     this.gl.uniform1i(this.drawShader.uniformLocationCache.get("uTexture"), 0);
 
     this.drawShape.bind();
@@ -580,7 +679,7 @@ class GLCanvasRenderer {
       return;
     }
     // First we draw to the interim framebuffer
-    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.interimFramebuffer);
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.interimFramebuffer.framebuffer);
 
     this.gl.viewport(0, 0, this.width, this.height);
 
@@ -594,7 +693,7 @@ class GLCanvasRenderer {
       this.lastPositionUniform[0] = positions[0];
       this.lastPositionUniform[1] = positions[1];
     }
-    
+
     this.gl.uniform2fv(shaderToUse.uniformLocationCache.get("uPositions"), positions);
     this.gl.uniform1f(shaderToUse.uniformLocationCache.get("uRadiusSquared"), this.radiusSquared);
     this.gl.uniform3fv(shaderToUse.uniformLocationCache.get("uStartingColor"), this.startingColor);
@@ -610,7 +709,7 @@ class GLCanvasRenderer {
     this.gl.activeTexture(this.gl.TEXTURE0);
     // Pull data from the final texture (since we are drawing to the interim one) this final texture
     // data should be the entire render not including this current "frame".
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.finalTexture);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.finalFramebuffers[this.activeScene].texture);
     this.gl.uniform1i(shaderToUse.uniformLocationCache.get("uTexture"), 0);
 
     const shapeToUse = this.shouldRenderLines ? this.linesRenderMultipleShape : this.circlesRenderMultipleShape;
@@ -618,7 +717,7 @@ class GLCanvasRenderer {
     shapeToUse.draw()
 
     // Then we copy the interim framebuffer to the final framebuffer with a simple "draw" pass
-    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.finalFramebuffer);
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.finalFramebuffers[this.activeScene].framebuffer);
 
     this.gl.viewport(0, 0, this.width, this.height);
 
@@ -626,7 +725,7 @@ class GLCanvasRenderer {
 
     this.gl.activeTexture(this.gl.TEXTURE0);
     // Use the interim texture so we are drawing from our rendered output
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.interimTexture);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.interimFramebuffer.texture);
     this.gl.uniform1i(this.drawShader.uniformLocationCache.get("uTexture"), 0);
 
     this.drawShape.bind();
@@ -644,7 +743,7 @@ class GLCanvasRenderer {
     this.drawShader.bind();
 
     this.gl.activeTexture(this.gl.TEXTURE0);
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.finalTexture);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.finalFramebuffers[this.activeScene].texture);
     this.gl.uniform1i(this.drawShader.uniformLocationCache.get("uTexture"), 0);
 
     this.drawShape.bind();
@@ -662,6 +761,7 @@ class CanvasManager {
   }
 
   initialize() {
+    console.log("Initializing CM");
     // Initialize the GL context
     this.gl = this.canvas.getContext("webgl", {
       alpha: true,
@@ -670,7 +770,6 @@ class CanvasManager {
     this.gl.enable(this.gl.BLEND);
     this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
     this.maxFragmentUniformVectors = this.gl.getParameter(this.gl.MAX_FRAGMENT_UNIFORM_VECTORS);
-    console.log("Max fragment uniform vectors: " + this.maxFragmentUniformVectors);
 
     if (this.gl === null) {
       alert(
@@ -719,6 +818,11 @@ class CanvasManager {
     });
 
     this.renderer = new GLCanvasRenderer(this.gl, this.canvas.width, this.canvas.height, this.maxFragmentUniformVectors);
+    if (this.renderer) {
+      console.log("Renderer initialized");
+    } else {
+      console.log("Renderer not initialized");
+    }
 
     this.gl.clearColor(0.0, 0.0, 0.0, 0.0);
     this.gl.clear(this.gl.COLOR_BUFFER_BIT);
@@ -818,10 +922,75 @@ linesSelectorInput.addEventListener('change', (e) => {
   cm.renderer.setShouldRenderLines(e.target.checked);
 });
 
+const sceneHolder = document.getElementById('sceneHolder');
+
+const addNewSceneButton = document.getElementById('addNewSceneButton');
+const deleteCurrentSceneButton = document.getElementById('deleteCurrentSceneButton');
+
+function handleSceneClicked(element) {
+  const sceneToSet = parseInt(element.id);
+  cm.renderer.setActiveScene(sceneToSet);
+  cm.renderer.draw(cm.canvas.width, cm.canvas.height);
+
+  document.querySelectorAll(".scene").forEach(e => {
+    e.disabled = false;
+  });
+
+  element.disabled = true;
+}
+
+function addScene(num) {
+  let idNum = num;
+  let newButton = document.createElement("input");
+  newButton.type = "button";
+  newButton.id = idNum;
+  newButton.value = "Scene " + idNum
+  newButton.classList.add("scene");
+  if (num === 0) {
+    newButton.disabled = true;
+  }
+  newButton.addEventListener("click", function () {
+    handleSceneClicked(this);
+  });
+  if (num !== 0) {
+    cm.renderer.addScene();
+  }
+  sceneHolder.appendChild(newButton);
+}
+
+addNewSceneButton.addEventListener('click', (e) => {
+  addScene(cm.renderer.getNumScenes());
+});
+
+deleteCurrentSceneButton.addEventListener('click', (e) => {
+  const sceneToRemove = cm.renderer.getActiveScene();
+  const originalNumScenes = cm.renderer.getNumScenes();
+  cm.renderer.removeScene(cm.renderer.getActiveScene());
+  cm.renderer.draw(cm.canvas.width, cm.canvas.height);
+
+  var elementToRemove = null;
+  document.querySelectorAll(".scene").forEach(e => {
+    const id = parseInt(e.id);
+    if (id >= sceneToRemove) {
+      if (id == sceneToRemove) {
+        elementToRemove = e;
+      }
+      e.id = Math.max(0, id - 1);
+      e.value = "Scene " + e.id;
+    }
+    e.disabled = (e.id == cm.renderer.getActiveScene());
+  });
+  if (originalNumScenes !== 1) {
+    sceneHolder.removeChild(elementToRemove);
+  }
+});
+
+addScene(0); // Add the first scene button
+
 function generate() {
   Profiler.profileFunction("Total Generation Time", () => {
     const p = new Profiler();
-  
+
     var temp = new Float32Array(512);
     for (var j = 0; j < 128; ++j) {
       for (var i = 0; i < 1018; ++i) {

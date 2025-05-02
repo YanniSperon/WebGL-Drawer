@@ -17,9 +17,19 @@
 <body style="background-color: #c8c8c8">
   <canvas id="gl-canvas" width="640" height="480"></canvas>
   <div>
-    <button onclick="generateRandom()" type="button">Generate</button>
-    <button onclick="clearCanvas()" type="button">Clear</button>
+    <input type="button" onclick="generateRandom()" value="Generate">
+    <input type="button" onclick="clearCanvas()" value="Clear">
+    <input type="button" id="addNewSceneButton" value="Add New Scene">
+    <input type="button" id="deleteCurrentSceneButton" value="Delete Current Scene">
   </div>
+  <br>
+  <div style="display: table;">
+    <div style="display: table-row;">
+      <div style="display: table-cell;" id="sceneHolder">
+      </div>
+    </div>
+  </div>
+  <br>
   <div style="display: table;">
     <div style="display: table-row;">
       <div style="display: table-cell;">
