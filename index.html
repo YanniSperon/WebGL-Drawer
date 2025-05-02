@@ -7,15 +7,61 @@
   <title>WebGL Demo</title>
   <script src="webgl-demo.js" type="module"></script>
   <style>
+    p {
+      margin: 0;
+    }
+
     canvas {
       border: 2px solid #000;
       cursor: crosshair;
+    }
+
+    .tooltip {
+      position: relative;
+      display: inline-block;
+      border-bottom: 1px dotted black;
+    }
+
+    .tooltip .tooltiptext {
+      visibility: hidden;
+      width: 120px;
+      background-color: black;
+      color: #fff;
+      text-align: center;
+      padding: 5px 5px;
+      border-radius: 6px;
+    
+      position: absolute;
+      z-index: 1;
+    }
+
+    .centered {
+      text-align: center;
+      margin: auto;
+    }
+
+    .tooltip:hover .tooltiptext {
+      visibility: visible;
+    }
+
+    .row {
+      display: table-row;
+    }
+
+    .cell {
+      display: table-cell;
+      padding: 4px;
+    }
+
+    .topSpacer {
+      margin-top: 32px;
     }
   </style>
 </head>
 
 <body style="background-color: #c8c8c8">
   <canvas id="gl-canvas" width="640" height="480"></canvas>
+  <p id="statusText"></p>
   <div>
     <input type="button" onclick="generateRandom()" value="Generate">
     <input type="button" onclick="clearCanvas()" value="Clear">
@@ -24,77 +70,113 @@
   </div>
   <br>
   <div style="display: table;">
-    <div style="display: table-row;">
-      <div style="display: table-cell;" id="sceneHolder">
+    <div class="row">
+      <div class="cell" id="sceneHolder">
       </div>
     </div>
   </div>
   <br>
   <div style="display: table;">
-    <div style="display: table-row;">
-      <div style="display: table-cell;">
+    <div class="row">
+      <div class="cell centered">
         <input type="range" id="rSlider" min="0" max="1" step="0.01" value="0.66">
       </div>
-      <div style="display: table-cell;">
+      <div class="cell centered">
         <input type="range" id="rDecSlider" min="0" max="1" step="0.01" value="0.07">
       </div>
     </div>
-    <div style="display: table-row;">
-      <div style="display: table-cell;">
-        <p>R: <span id="rSliderValue">0.66</span></p>
+    <div class="row">
+      <div class="cell centered">
+        <div class="tooltip">R: <span id="rSliderValue">0.66</span>
+          <span class="tooltiptext">The starting r channel value for when points/lines are drawn over empty area</span>
+        </div>
       </div>
-      <div style="display: table-cell;">
-        <p>R Decrement: <span id="rDecSliderValue">0.07</span></p>
+      <div class="cell centered">
+        <div class="tooltip">R Decrement: <span id="rDecSliderValue">0.07</span>
+          <span class="tooltiptext">The amount to subtract from the red channel when points/lines overlap</span>
+        </div>
       </div>
     </div>
 
-    <div style="display: table-row;">
-      <div style="display: table-cell;">
+    <div class="row">
+      <div class="cell centered">
         <input type="range" id="gSlider" min="0" max="1" step="0.01" value="0.66">
       </div>
-      <div style="display: table-cell;">
+      <div class="cell centered">
         <input type="range" id="gDecSlider" min="0" max="1" step="0.01" value="0.07">
       </div>
     </div>
-    <div style="display: table-row;">
-      <div style="display: table-cell;">
-        <p>G: <span id="gSliderValue">0.66</span></p>
+    <div class="row">
+      <div class="cell centered">
+        <div class="tooltip">G: <span id="gSliderValue">0.66</span>
+          <span class="tooltiptext">The starting g channel value for when points/lines are drawn over empty area</span>
+        </div>
       </div>
-      <div style="display: table-cell;">
-        <p>G Decrement: <span id="gDecSliderValue">0.07</span></p>
+      <div class="cell centered">
+        <div class="tooltip">G Decrement: <span id="gDecSliderValue">0.07</span>
+          <span class="tooltiptext">The amount to subtract from the green channel when points/lines overlap</span>
+        </div>
       </div>
     </div>
 
-    <div style="display: table-row;">
-      <div style="display: table-cell;">
+    <div class="row">
+      <div class="cell centered">
         <input type="range" id="bSlider" min="0" max="1" step="0.01" value="0.66">
       </div>
-      <div style="display: table-cell;">
+      <div class="cell centered">
         <input type="range" id="bDecSlider" min="0" max="1" step="0.01" value="0.07">
       </div>
     </div>
-    <div style="display: table-row;">
-      <div style="display: table-cell;">
-        <p>B: <span id="bSliderValue">0.66</span></p>
+    <div class="row">
+      <div class="cell centered">
+        <div class="tooltip">B: <span id="bSliderValue">0.66</span>
+          <span class="tooltiptext">The starting b channel value for when points/lines are drawn over empty area</span>
+        </div>
       </div>
-      <div style="display: table-cell;">
-        <p>B Decrement: <span id="bDecSliderValue">0.07</span></p>
+      <div class="cell centered">
+        <div class="tooltip">B Decrement: <span id="bDecSliderValue">0.07</span>
+          <span class="tooltiptext">The amount to subtract from the blue channel when points/lines overlap</span>
+        </div>
       </div>
     </div>
-    <div style="display: table-row;">
-      <div style="display: table-cell;">
-        <p>Line Width</p>
+    <div class="row">
+      <div class="cell">
+        <div class="tooltip topSpacer">Line Width
+          <span class="tooltiptext">The width of the line to render or the radius of the circle</span>
+        </div>
       </div>
-      <div style="display: table-cell;">
+      <div class="cell">
         <input type="number" id="lineWidthInput" step="1" value="2">
       </div>
     </div>
-    <div style="display: table-row;">
-      <div style="display: table-cell;">
-        <p>Draw Lines</p>
+    <div class="row">
+      <div class="cell">
+        <div class="tooltip">Draw Lines
+          <span class="tooltiptext">Check if you want to draw lines instead of points</span>
+        </div>
       </div>
-      <div style="display: table-cell;">
+      <div class="cell">
         <input type="checkbox" id="linesSelectorInput">
+      </div>
+    </div>
+    <div class="row">
+      <div class="cell">
+        <div class="tooltip">Generated points
+          <span class="tooltiptext">The number of points to generate per pass</span>
+        </div>
+      </div>
+      <div class="cell">
+        <input type="number" id="batchSizeInput" step="10" value="50">
+      </div>
+    </div>
+    <div class="row">
+      <div class="cell">
+        <div class="tooltip">Generation passes
+          <span class="tooltiptext">The number of passes to make</span>
+        </div>
+      </div>
+      <div class="cell">
+        <input type="number" id="batchesToGenInput" step="1" value="1">
       </div>
     </div>
   </div>

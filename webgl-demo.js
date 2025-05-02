@@ -29,14 +29,18 @@ class Profiler {
 
   printStatsSinceStart(desc) {
     const currTime = performance.now();
-    console.log(`${desc}: ${(currTime - this.startTime).toFixed(3)} ms`);
+    const timeDiff = (currTime - this.startTime).toFixed(3);
+    console.log(`${desc}: ${timeDiff} ms`);
     this.lastCheckedTime = currTime;
+    return timeDiff;
   }
 
   printStatsSinceLast(desc) {
     const currTime = performance.now();
-    console.log(`${desc}: ${(currTime - this.lastCheckedTime).toFixed(3)} ms`);
+    const timeDiff = (currTime - this.lastCheckedTime).toFixed(3);
+    console.log(`${desc}: ${timeDiff} ms`);
     this.lastCheckedTime = currTime;
+    return timeDiff;
   }
 }
 
@@ -912,6 +916,9 @@ const lineWidthInput = document.getElementById('lineWidthInput');
 
 // Display the value when changed
 lineWidthInput.addEventListener('input', () => {
+  if (lineWidthInput.value < 1) {
+    lineWidthInput.value = 1;
+  }
   cm.renderer.setRadiusPixels(lineWidthInput.value);
 });
 
@@ -926,6 +933,24 @@ const sceneHolder = document.getElementById('sceneHolder');
 
 const addNewSceneButton = document.getElementById('addNewSceneButton');
 const deleteCurrentSceneButton = document.getElementById('deleteCurrentSceneButton');
+
+const batchSizeInput = document.getElementById('batchSizeInput');
+const batchesToGenInput = document.getElementById('batchesToGenInput');
+
+batchSizeInput.addEventListener('input', () => {
+  const maxSize = Math.floor((Math.max(linesSelectorInput.checked ? (cm.renderer.maxFragmentUniformVectors - 6) : (cm.renderer.maxFragmentUniformVectors - 5), 1))/2);
+  if (batchSizeInput.value < 1) {
+    batchSizeInput.value = 1;
+  } else if (batchSizeInput.value > maxSize) {
+    batchSizeInput.value = maxSize;
+  }
+});
+
+batchesToGenInput.addEventListener('input', () => {
+  if (batchesToGenInput.value < 1) {
+    batchesToGenInput.value = 1;
+  }
+});
 
 function handleSceneClicked(element) {
   const sceneToSet = parseInt(element.id);
@@ -991,13 +1016,16 @@ function generate() {
   Profiler.profileFunction("Total Generation Time", () => {
     const p = new Profiler();
 
-    var temp = new Float32Array(512);
-    for (var j = 0; j < 128; ++j) {
-      for (var i = 0; i < 1018; ++i) {
+    const batchSize = batchSizeInput.value * 2;
+    const batchesToGenerate = batchesToGenInput.value;
+    
+    var temp = new Float32Array(batchSize);
+    for (var j = 0; j < batchesToGenerate; ++j) {
+      for (var i = 0; i < batchSize; ++i) {
         if (i % 2 == 0) {
-          temp[i] = Math.floor(Math.random() * 640.0);
+          temp[i] = Math.floor(Math.random() * cm.canvas.width);
         } else {
-          temp[i] = Math.floor(Math.random() * 480.0);
+          temp[i] = Math.floor(Math.random() * cm.canvas.height);
         }
       }
       cm.renderer.renderMultiple(temp);
@@ -1006,6 +1034,7 @@ function generate() {
     cm.renderer.draw(canvas.width, canvas.height);
     p.printStatsSinceLast("Draw time");
     cm.renderer.resetLastPosition();
+
   });
 }
 
